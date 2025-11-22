@@ -26,7 +26,6 @@ function FileManager() {
 
   useEffect(() => {
     if (fileParam) {
-      // Construct a minimal FileItem from the URL param
       setSelectedFile({
         name: fileParam.split('/').pop() || fileParam,
         path: fileParam,

@@ -43,7 +43,7 @@ export default function LoginPage() {
         <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
             <Card className="w-full max-w-md p-8">
                 <div className="flex flex-col items-center mb-6 gap-2">
-                    <img src="/genomas.png" alt="Genomas Manager" className="h-12 w-12" />
+                    <img src="/genomas.png" alt="Genomas Manager" className="h-12 w-12" width={48} height={48} />
                     <h1 className="text-2xl font-bold text-center">Genomas Manager</h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Enter your password to continue</p>
                 </div>

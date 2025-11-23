@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { S3Client, ListObjectsV2Command, GetObjectCommand } from '@aws-sdk/client-s3';
 import archiver from 'archiver';
 import { PassThrough } from 'stream';
-import { config, getRootPrefix } from '@/lib/config';
+import { config } from '@/lib/config';
+import { getAuthUser, getUserPrefix } from '@/lib/auth';
 
 const s3Client = new S3Client({
     region: config.aws.region,
@@ -13,6 +14,12 @@ const s3Client = new S3Client({
 });
 
 export async function GET(request: NextRequest) {
+    // Get authenticated user
+    const user = await getAuthUser();
+    if (!user) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const prefix = searchParams.get('prefix');
 
@@ -20,8 +27,15 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Prefix is required' }, { status: 400 });
     }
 
-    const normalizedRootPrefix = getRootPrefix();
-    const fullPrefix = normalizedRootPrefix + prefix;
+    const userPrefix = getUserPrefix(user);
+    const requestedPrefix = prefix;
+
+    // Security check
+    if (!requestedPrefix.startsWith(userPrefix)) {
+        return NextResponse.json({ error: 'Access denied: Invalid prefix' }, { status: 403 });
+    }
+
+    const fullPrefix = requestedPrefix;
 
     try {
         // List all objects in the folder

@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FaLock, FaSpinner } from 'react-icons/fa';
 
 export default function LoginPage() {
+    const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -22,7 +23,7 @@ export default function LoginPage() {
             const response = await fetch('/api/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ password }),
+                body: JSON.stringify({ username, password }),
             });
 
             if (response.ok) {
@@ -45,10 +46,19 @@ export default function LoginPage() {
                 <div className="flex flex-col items-center mb-6 gap-2">
                     <img src="/genomas.png" alt="Genomas Manager" className="h-12 w-12" width={48} height={48} />
                     <h1 className="text-2xl font-bold text-center">Genomas Manager</h1>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Enter your password to continue</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Enter your credentials to continue</p>
                 </div>
                 <CardContent>
                     <form onSubmit={handleLogin} className="space-y-4">
+                        <div className="space-y-2">
+                            <Input
+                                type="text"
+                                placeholder="Username"
+                                value={username}
+                                onChange={(e) => setUsername(e.target.value)}
+                                className="w-full"
+                            />
+                        </div>
                         <div className="space-y-2">
                             <Input
                                 type="password"

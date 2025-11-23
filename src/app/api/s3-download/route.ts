@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { config, getRootPrefix } from '@/lib/config';
+import { config } from '@/lib/config';
+import { getAuthUser, getUserPrefix } from '@/lib/auth';
 
 const s3Client = new S3Client({
     region: config.aws.region,
@@ -12,8 +13,14 @@ const s3Client = new S3Client({
 });
 
 export async function GET(request: NextRequest) {
+    // Get authenticated user
+    const user = await getAuthUser();
+    if (!user) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const searchParams = request.nextUrl.searchParams;
-    const normalizedRootPrefix = getRootPrefix();
+    const userPrefix = getUserPrefix(user);
 
     const key = searchParams.get('key');
 
@@ -21,7 +28,12 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Key is required' }, { status: 400 });
     }
 
-    const fullKey = normalizedRootPrefix + key;
+    // Security check: Ensure key starts with userPrefix
+    if (!key.startsWith(userPrefix)) {
+        return NextResponse.json({ error: 'Access denied: Invalid key' }, { status: 403 });
+    }
+
+    const fullKey = key;
 
     try {
         const command = new GetObjectCommand({

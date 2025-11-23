@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { Button } from '@/components/ui/button';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
-import { FaSignOutAlt } from 'react-icons/fa';
+import { FaSignOutAlt, FaSpinner } from 'react-icons/fa';
 import FileExplorer from '@/components/file-explorer';
 import FilePreview from '@/components/file-preview';
 import { ModeToggle } from '@/components/mode-toggle';
@@ -20,9 +20,20 @@ function FileManager() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
+  const [user, setUser] = useState<{ username: string; type: string; prefix?: string } | null>(null);
 
+  const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
   const fileParam = searchParams.get('file');
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(res => {
+        if (res.ok) return res.json();
+        throw new Error('Not authenticated');
+      })
+      .then(data => setUser(data))
+      .catch(() => router.push('/login'));
+  }, [router]);
 
   useEffect(() => {
     if (fileParam) {
@@ -48,6 +59,8 @@ function FileManager() {
     router.push(`${pathname}?${params.toString()}`);
   };
 
+  if (!user) return <div className="flex h-screen items-center justify-center"><FaSpinner className="animate-spin text-4xl" /></div>;
+
   return (
     <main className="flex h-screen flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden">
       <header className="h-14 border-b bg-white dark:bg-gray-900 flex items-center justify-between px-6 shrink-0">
@@ -56,6 +69,12 @@ function FileManager() {
           <h1 className="font-bold text-lg">Genomas Manager</h1>
         </div>
         <div className="flex items-center gap-2">
+          {user.type === 'admin' && (
+            <Button variant="outline" size="sm" onClick={() => router.push('/admin/users')}>
+              Admin Panel
+            </Button>
+          )}
+          <span className="text-sm font-medium mr-2">Hello, {user.username}</span>
           <ModeToggle />
           <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2">
             <FaSignOutAlt /> Logout
@@ -68,6 +87,7 @@ function FileManager() {
           <FileExplorer
             onFileSelect={handleFileSelect}
             selectedPath={selectedFile?.path}
+            rootPrefix={user.prefix || ''}
           />
         </div>
         <div className="flex-1 h-full bg-gray-50 dark:bg-gray-900 p-4 overflow-hidden">

@@ -1,7 +1,25 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FaFolder, FaFolderOpen, FaFile, FaFilePdf, FaFileImage, FaFileCode, FaFileCsv, FaTerminal, FaEllipsisV, FaDownload } from 'react-icons/fa';
+import { FaFile, FaFolder, FaDownload, FaTrash, FaUpload, FaArrowLeft, FaFilePdf, FaFileImage, FaFileCode, FaFileCsv, FaTerminal, FaEllipsisV } from 'react-icons/fa';
+
+interface FileSystemEntry {
+    isFile: boolean;
+    isDirectory: boolean;
+    name: string;
+}
+
+interface FileSystemFileEntry extends FileSystemEntry {
+    file: (callback: (file: File) => void) => void;
+}
+
+interface FileSystemDirectoryEntry extends FileSystemEntry {
+    createReader: () => FileSystemDirectoryReader;
+}
+
+interface FileSystemDirectoryReader {
+    readEntries: (callback: (entries: FileSystemEntry[]) => void) => void;
+}
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -24,16 +42,39 @@ interface FileItem {
 interface FileExplorerProps {
     onFileSelect: (file: FileItem) => void;
     selectedPath?: string | null;
+    rootPrefix?: string;
 }
 
-export default function FileExplorer({ onFileSelect, selectedPath }: FileExplorerProps) {
+export default function FileExplorer({ onFileSelect, selectedPath, rootPrefix = '' }: FileExplorerProps) {
     const searchParams = useSearchParams();
     const router = useRouter();
     const pathname = usePathname();
 
-    const currentPath = searchParams.get('prefix') || '';
     const [items, setItems] = useState<FileItem[]>([]);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [currentPath, setCurrentPath] = useState(rootPrefix);
+
+    const [uploading, setUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
+    const [isDragging, setIsDragging] = useState(false);
+
+    // Sync currentPath with URL or rootPrefix
+    useEffect(() => {
+        const pathParam = searchParams.get('prefix'); // Changed from 'path' to 'prefix' to match existing usage
+        if (pathParam) {
+            if (pathParam.startsWith(rootPrefix)) {
+                setCurrentPath(pathParam);
+            } else {
+                // Redirect if trying to access outside rootPrefix
+                const params = new URLSearchParams(searchParams);
+                params.set('prefix', rootPrefix); // Changed from 'path' to 'prefix'
+                router.replace(`${pathname}?${params.toString()}`);
+                setCurrentPath(rootPrefix);
+            }
+        } else {
+            setCurrentPath(rootPrefix);
+        }
+    }, [searchParams, rootPrefix, router, pathname]);
 
     const fetchItems = async (prefix: string) => {
         setLoading(true);
@@ -57,25 +98,26 @@ export default function FileExplorer({ onFileSelect, selectedPath }: FileExplore
     const handleFolderClick = (path: string) => {
         const params = new URLSearchParams(searchParams);
         params.set('prefix', path);
-        // Keep the selected file if it's in the new folder? No, usually deselect or keep as is.
-        // But if we change folder, the file might not be visible.
-        // Let's just update prefix.
         router.push(`${pathname}?${params.toString()}`);
     };
 
     const handleBack = () => {
         if (!currentPath) return;
+        if (currentPath === rootPrefix) return;
 
         // Remove trailing slash if exists
         const cleanPath = currentPath.endsWith('/') ? currentPath.slice(0, -1) : currentPath;
         const parts = cleanPath.split('/');
         parts.pop(); // Remove last segment
-        const newPath = parts.join('/');
-        const finalPath = newPath ? (newPath.endsWith('/') ? newPath : newPath + '/') : '';
+        let newPath = parts.join('/');
+        newPath = newPath ? (newPath.endsWith('/') ? newPath : newPath + '/') : '';
+
+        // Ensure we don't go above rootPrefix
+        const targetPath = newPath.length < rootPrefix.length ? rootPrefix : newPath;
 
         const params = new URLSearchParams(searchParams);
-        if (finalPath) {
-            params.set('prefix', finalPath);
+        if (targetPath) {
+            params.set('prefix', targetPath);
         } else {
             params.delete('prefix');
         }
@@ -97,20 +139,148 @@ export default function FileExplorer({ onFileSelect, selectedPath }: FileExplore
         return <FaFile className="text-gray-500" />;
     };
 
+    // Upload Logic
+    const uploadFile = async (file: File, path: string = '') => {
+        const relativePath = path ? path + '/' + file.name : file.name;
+        setUploadProgress(prev => ({ ...prev, [relativePath]: 0 }));
+
+        try {
+            // 1. Get presigned URL
+            const res = await fetch('/api/s3-upload', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    filename: file.name,
+                    contentType: file.type,
+                    prefix: currentPath + (path ? path + '/' : ''),
+                }),
+            });
+
+            if (!res.ok) throw new Error('Failed to get upload URL');
+            const { uploadUrl } = await res.json();
+
+            // 2. Upload to S3
+            const xhr = new XMLHttpRequest();
+            xhr.open('PUT', uploadUrl, true);
+            xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+
+            xhr.upload.onprogress = (e) => {
+                if (e.lengthComputable) {
+                    const percentComplete = (e.loaded / e.total) * 100;
+                    setUploadProgress(prev => ({ ...prev, [relativePath]: percentComplete }));
+                }
+            };
+
+            return new Promise<void>((resolve, reject) => {
+                xhr.onload = () => {
+                    if (xhr.status === 200) {
+                        setUploadProgress(prev => {
+                            const newProgress = { ...prev };
+                            delete newProgress[relativePath];
+                            return newProgress;
+                        });
+                        resolve();
+                    } else {
+                        reject(new Error('Upload failed'));
+                    }
+                };
+                xhr.onerror = () => reject(new Error('Upload failed'));
+                xhr.send(file);
+            });
+
+        } catch (error) {
+            console.error(`Error uploading ${file.name}:`, error);
+            // TODO: Handle error UI
+        }
+    };
+
+    const processEntry = async (entry: FileSystemEntry, path: string = '') => {
+        if (entry.isFile) {
+            const fileEntry = entry as FileSystemFileEntry;
+            return new Promise<void>((resolve) => {
+                fileEntry.file(async (file) => {
+                    await uploadFile(file, path);
+                    resolve();
+                });
+            });
+        } else if (entry.isDirectory) {
+            const dirEntry = entry as FileSystemDirectoryEntry;
+            const dirReader = dirEntry.createReader();
+
+            const entries = await new Promise<FileSystemEntry[]>((resolve) => {
+                dirReader.readEntries((results) => resolve(results));
+            });
+
+            const newPath = path ? `${path}/${entry.name}` : entry.name;
+            await Promise.all(entries.map(e => processEntry(e, newPath)));
+        }
+    };
+
+    const handleDrop = async (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(false);
+        setUploading(true);
+
+        const items = Array.from(e.dataTransfer.items);
+
+        try {
+            const promises = items.map(item => {
+                const entry = item.webkitGetAsEntry();
+                if (entry) {
+                    return processEntry(entry);
+                }
+                return Promise.resolve();
+            });
+
+            await Promise.all(promises);
+            fetchItems(currentPath); // Refresh list
+        } catch (error) {
+            console.error('Upload error:', error);
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(false);
+    };
+
     return (
-        <div className="h-full flex flex-col">
+        <div
+            className="h-full flex flex-col relative"
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+        >
+            {isDragging && (
+                <div className="absolute inset-0 bg-blue-500/20 z-50 flex items-center justify-center border-2 border-blue-500 border-dashed m-2 rounded-lg pointer-events-none">
+                    <div className="bg-background p-4 rounded-lg shadow-lg text-lg font-medium">
+                        Drop files to upload
+                    </div>
+                </div>
+            )}
+
             <div className="p-4 border-b flex items-center gap-2 bg-gray-50 dark:bg-gray-900">
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleBack}
-                    disabled={!currentPath}
-                >
-                    Back
-                </Button>
-                <span className="text-sm font-medium truncate flex-1">
-                    {currentPath || 'Root'}
-                </span>
+                <div className="flex items-center gap-2 mb-4">
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={handleBack}
+                        disabled={!currentPath || currentPath === rootPrefix}
+                    >
+                        <FaArrowLeft />
+                    </Button>
+                    <div className="text-sm font-medium truncate flex-1">
+                        {currentPath === rootPrefix ? 'Root' : currentPath.replace(rootPrefix, '') || 'Root'}
+                    </div>
+                </div>
+                {uploading && <span className="text-xs text-blue-500 animate-pulse">Uploading...</span>}
             </div>
             <ScrollArea className="flex-1">
                 <div className="p-2">
@@ -118,6 +288,22 @@ export default function FileExplorer({ onFileSelect, selectedPath }: FileExplore
                         <div className="p-4 text-center text-gray-500">Loading...</div>
                     ) : (
                         <div className="space-y-1">
+                            {/* Upload Progress Indicators */}
+                            {Object.entries(uploadProgress).map(([name, progress]) => (
+                                <div key={name} className="p-2 bg-gray-50 dark:bg-gray-800 rounded-md text-xs mb-1">
+                                    <div className="flex justify-between mb-1">
+                                        <span className="truncate max-w-[200px]">{name}</span>
+                                        <span>{Math.round(progress)}%</span>
+                                    </div>
+                                    <div className="h-1 w-full bg-gray-200 rounded-full overflow-hidden">
+                                        <div
+                                            className="h-full bg-blue-500 transition-all duration-300"
+                                            style={{ width: `${progress}%` }}
+                                        />
+                                    </div>
+                                </div>
+                            ))}
+
                             {items.map((item) => (
                                 <div
                                     key={item.path}
@@ -156,7 +342,7 @@ export default function FileExplorer({ onFileSelect, selectedPath }: FileExplore
                                     )}
                                 </div>
                             ))}
-                            {items.length === 0 && (
+                            {items.length === 0 && Object.keys(uploadProgress).length === 0 && (
                                 <div className="p-4 text-center text-gray-500 text-sm">
                                     Empty folder
                                 </div>

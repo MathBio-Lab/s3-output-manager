@@ -50,9 +50,22 @@ export default function FileExplorer({ onFileSelect, selectedPath, rootPrefix = 
     const router = useRouter();
     const pathname = usePathname();
 
+    // Normalize rootPrefix to always end with / if not empty
+    const normalizedRootPrefix = rootPrefix && !rootPrefix.endsWith('/') ? `${rootPrefix}/` : rootPrefix;
+
+    const [openMenuPath, setOpenMenuPath] = useState<string | null>(null);
+
     const [items, setItems] = useState<FileItem[]>([]);
     const [loading, setLoading] = useState(true);
-    const [currentPath, setCurrentPath] = useState(rootPrefix);
+
+    // Initialize with URL param if valid, otherwise root
+    const [currentPath, setCurrentPath] = useState(() => {
+        const param = searchParams.get('prefix');
+        if (param && param.startsWith(normalizedRootPrefix)) {
+            return param;
+        }
+        return normalizedRootPrefix;
+    });
 
     const [uploading, setUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
@@ -60,21 +73,21 @@ export default function FileExplorer({ onFileSelect, selectedPath, rootPrefix = 
 
     // Sync currentPath with URL or rootPrefix
     useEffect(() => {
-        const pathParam = searchParams.get('prefix'); // Changed from 'path' to 'prefix' to match existing usage
+        const pathParam = searchParams.get('prefix');
         if (pathParam) {
-            if (pathParam.startsWith(rootPrefix)) {
+            if (pathParam.startsWith(normalizedRootPrefix)) {
                 setCurrentPath(pathParam);
             } else {
                 // Redirect if trying to access outside rootPrefix
                 const params = new URLSearchParams(searchParams);
-                params.set('prefix', rootPrefix); // Changed from 'path' to 'prefix'
+                params.set('prefix', normalizedRootPrefix);
                 router.replace(`${pathname}?${params.toString()}`);
-                setCurrentPath(rootPrefix);
+                setCurrentPath(normalizedRootPrefix);
             }
         } else {
-            setCurrentPath(rootPrefix);
+            setCurrentPath(normalizedRootPrefix);
         }
-    }, [searchParams, rootPrefix, router, pathname]);
+    }, [searchParams, normalizedRootPrefix, router, pathname]);
 
     const fetchItems = async (prefix: string) => {
         setLoading(true);
@@ -103,7 +116,7 @@ export default function FileExplorer({ onFileSelect, selectedPath, rootPrefix = 
 
     const handleBack = () => {
         if (!currentPath) return;
-        if (currentPath === rootPrefix) return;
+        if (currentPath === normalizedRootPrefix) return;
 
         // Remove trailing slash if exists
         const cleanPath = currentPath.endsWith('/') ? currentPath.slice(0, -1) : currentPath;
@@ -113,7 +126,7 @@ export default function FileExplorer({ onFileSelect, selectedPath, rootPrefix = 
         newPath = newPath ? (newPath.endsWith('/') ? newPath : newPath + '/') : '';
 
         // Ensure we don't go above rootPrefix
-        const targetPath = newPath.length < rootPrefix.length ? rootPrefix : newPath;
+        const targetPath = newPath.length < normalizedRootPrefix.length ? normalizedRootPrefix : newPath;
 
         const params = new URLSearchParams(searchParams);
         if (targetPath) {
@@ -251,6 +264,29 @@ export default function FileExplorer({ onFileSelect, selectedPath, rootPrefix = 
         setIsDragging(false);
     };
 
+    const handleDelete = async (e: React.MouseEvent, item: FileItem) => {
+        e.stopPropagation();
+        if (!confirm(`Are you sure you want to delete "${item.name}"? This action cannot be undone.`)) return;
+
+        try {
+            const res = await fetch('/api/s3-delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key: item.path, type: item.type }),
+            });
+
+            if (res.ok) {
+                fetchItems(currentPath); // Refresh list
+            } else {
+                const data = await res.json();
+                alert(data.error || 'Failed to delete');
+            }
+        } catch (error) {
+            console.error('Delete error:', error);
+            alert('An error occurred while deleting');
+        }
+    };
+
     return (
         <div
             className="h-full flex flex-col relative"
@@ -272,25 +308,27 @@ export default function FileExplorer({ onFileSelect, selectedPath, rootPrefix = 
                         variant="outline"
                         size="icon"
                         onClick={handleBack}
-                        disabled={!currentPath || currentPath === rootPrefix}
+                        disabled={!currentPath || currentPath === normalizedRootPrefix}
                     >
                         <FaArrowLeft />
                     </Button>
                     <div className="text-sm font-medium truncate flex-1">
-                        {currentPath === rootPrefix ? 'Root' : currentPath.replace(rootPrefix, '') || 'Root'}
+                        {currentPath === normalizedRootPrefix ? 'Root' : currentPath.replace(normalizedRootPrefix, '') || 'Root'}
                     </div>
                 </div>
                 {uploading && <span className="text-xs text-blue-500 animate-pulse">Uploading...</span>}
             </div>
-            <ScrollArea className="flex-1">
-                <div className="p-2">
+
+            {/* Native scroll container for better visibility and reliability */}
+            <div className="flex-1 overflow-y-auto overflow-x-hidden w-full">
+                <div className="p-2 w-full">
                     {loading ? (
                         <div className="p-4 text-center text-gray-500">Loading...</div>
                     ) : (
-                        <div className="space-y-1">
+                        <div className="space-y-1 w-full">
                             {/* Upload Progress Indicators */}
                             {Object.entries(uploadProgress).map(([name, progress]) => (
-                                <div key={name} className="p-2 bg-gray-50 dark:bg-gray-800 rounded-md text-xs mb-1">
+                                <div key={name} className="p-2 bg-gray-50 dark:bg-gray-800 rounded-md text-xs mb-1 w-full">
                                     <div className="flex justify-between mb-1">
                                         <span className="truncate max-w-[200px]">{name}</span>
                                         <span>{Math.round(progress)}%</span>
@@ -308,38 +346,57 @@ export default function FileExplorer({ onFileSelect, selectedPath, rootPrefix = 
                                 <div
                                     key={item.path}
                                     className={cn(
-                                        "group flex items-center gap-2 p-2 rounded-md cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors",
-                                        selectedPath === item.path && "bg-blue-100 dark:bg-blue-900"
+                                        "group flex items-center gap-3 p-2 rounded-md cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors w-full max-w-full",
+                                        selectedPath === item.path && "bg-blue-100 dark:bg-blue-900",
+                                        // Keep hover style when menu is open
+                                        openMenuPath === item.path && "bg-gray-100 dark:bg-gray-800"
                                     )}
                                     onClick={() => item.type === 'folder' ? handleFolderClick(item.path) : onFileSelect(item)}
                                 >
-                                    {getIcon(item)}
-                                    <span className="text-sm truncate flex-1">{item.name}</span>
+                                    <div className="shrink-0">
+                                        {getIcon(item)}
+                                    </div>
+
+                                    {/* min-w-0 is crucial for truncate to work in flex */}
+                                    <span className="text-sm truncate flex-1 min-w-0" title={item.name}>
+                                        {item.name}
+                                    </span>
+
                                     {item.size && (
-                                        <span className="text-xs text-gray-400">
+                                        <span className="text-xs text-gray-400 shrink-0 whitespace-nowrap hidden sm:block">
                                             {(item.size / 1024).toFixed(1)} KB
                                         </span>
                                     )}
 
-                                    {item.type === 'folder' && (
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                    onClick={(e) => e.stopPropagation()}
-                                                >
-                                                    <FaEllipsisV className="h-3 w-3" />
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end">
+                                    <DropdownMenu onOpenChange={(open) => setOpenMenuPath(open ? item.path : null)}>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className={cn(
+                                                    "h-8 w-8 shrink-0 transition-opacity focus:opacity-100",
+                                                    // Always visible on mobile or if menu is open
+                                                    openMenuPath === item.path ? "opacity-100" : "opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+                                                )}
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
+                                                <FaEllipsisV className="h-3 w-3" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            {item.type === 'folder' && (
                                                 <DropdownMenuItem onClick={(e) => handleDownloadFolder(e, item.path)}>
                                                     <FaDownload className="mr-2 h-4 w-4" /> Download Folder
                                                 </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
-                                    )}
+                                            )}
+                                            <DropdownMenuItem
+                                                onClick={(e) => handleDelete(e, item)}
+                                                className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                                            >
+                                                <FaTrash className="mr-2 h-4 w-4" /> Delete
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
                                 </div>
                             ))}
                             {items.length === 0 && Object.keys(uploadProgress).length === 0 && (
@@ -350,7 +407,7 @@ export default function FileExplorer({ onFileSelect, selectedPath, rootPrefix = 
                         </div>
                     )}
                 </div>
-            </ScrollArea>
+            </div>
         </div>
     );
 }

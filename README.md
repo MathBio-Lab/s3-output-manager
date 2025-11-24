@@ -97,3 +97,60 @@ Calcular un presupuesto exacto para tu caso si me das: región AWS, GB almacenad
 Sugerir arquitectura concreta (presigned URLs, IAM policy mínima, CDN + caching headers, cómo gestionar borrado/listado seguro) y estimación de costos con granularidad (storage, requests, data-out, compute).
 
 Dime si quieres que haga la estimación exacta con tus números (región y volúmenes) y lo calculo ahora mismo.
+
+## Deployment con Docker
+
+### 1. Configurar variables de entorno
+
+Copia el archivo de ejemplo y configura tus credenciales:
+
+```bash
+cp .env.example .env
+```
+
+Edita `.env` con tus valores de AWS y PostgreSQL.
+
+### 2. Iniciar los contenedores
+
+```bash
+docker compose up --build -d
+```
+
+Esto construye las imágenes y levanta los servicios (PostgreSQL + Next.js).
+
+### 3. Aplicar migraciones de base de datos
+
+```bash
+docker compose exec nextjs-s3-app npx prisma migrate deploy
+```
+
+### 4. Poblar la base de datos (opcional)
+
+```bash
+docker compose exec nextjs-s3-app npx prisma db seed
+```
+
+Esto crea usuarios de prueba:
+- **admin** / admin (tipo: admin)
+- **client1** / client123 (tipo: client, prefix: karen)
+- **team1** / team123 (tipo: team)
+
+### 5. Acceder a la aplicación
+
+Abre tu navegador en: **http://localhost:3000**
+
+### Comandos útiles
+
+```bash
+# Ver logs
+docker compose logs -f nextjs-s3-app
+
+# Reiniciar servicios
+docker compose restart
+
+# Detener servicios
+docker compose down
+
+# Detener y eliminar volúmenes (⚠️ borra la base de datos)
+docker compose down -v
+```

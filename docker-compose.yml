@@ -1,4 +1,5 @@
 services:
+  # ========= DATABASE ==========
   db-s3-downloader-service:
     image: postgres:17
     container_name: bd_s3_downloader_service
@@ -11,6 +12,22 @@ services:
       - "${POSTGRES_PORT}:5432"
     volumes:
       - db_data_new:/var/lib/postgresql/data
+    networks:
+      - s3_downloader_network
+
+  # ========= NEXT.JS APP ==========
+  nextjs-s3-app:
+    build: .
+    container_name: nextjs_s3_downloader
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db-s3-downloader-service
     networks:
       - s3_downloader_network
 

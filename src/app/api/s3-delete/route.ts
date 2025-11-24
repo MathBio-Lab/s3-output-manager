@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
 
             do {
                 // List objects to delete
-                const listCommand = new ListObjectsV2Command({
+                const listCommand: ListObjectsV2Command = new ListObjectsV2Command({
                     Bucket: config.aws.bucketName,
                     Prefix: folderPrefix,
                     ContinuationToken: continuationToken,

@@ -4,12 +4,14 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { FaLock, FaSpinner } from 'react-icons/fa';
+import { Card, CardContent } from '@/components/ui/card';
+import { FaLock, FaSpinner, FaEye, FaEyeSlash } from 'react-icons/fa';
+import { ThemeColorPicker } from '@/components/theme-color-picker';
 
 export default function LoginPage() {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const router = useRouter();
@@ -23,7 +25,7 @@ export default function LoginPage() {
             const response = await fetch('/api/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password }),
+                body: JSON.stringify({ username: username.trim(), password }),
             });
 
             if (response.ok) {
@@ -41,15 +43,18 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="flex min-h-screen items-center justify-center relative" style={{ background: `hsl(var(--theme-background))`, color: `hsl(var(--theme-foreground))` }}>
+            <div className="absolute top-4 right-4">
+                <ThemeColorPicker />
+            </div>
             <Card className="w-full max-w-md p-8">
                 <div className="flex flex-col items-center mb-6 gap-2">
-                    <img src="/genomas.png" alt="Genomas Manager" className="h-12 w-12" width={48} height={48} />
+                    <img src="/genomas.png" alt="Genomas Manager Logo" className="h-12 w-12" width={48} height={48} />
                     <h1 className="text-2xl font-bold text-center">Genomas Manager</h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Enter your credentials to continue</p>
                 </div>
-                <CardContent>
-                    <form onSubmit={handleLogin} className="space-y-4">
+                <CardContent className="p-0">
+                    <form onSubmit={handleLogin} className="space-y-4" aria-label="Login form">
                         <div className="space-y-2">
                             <Input
                                 type="text"
@@ -59,14 +64,22 @@ export default function LoginPage() {
                                 className="w-full"
                             />
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-2 relative">
                             <Input
-                                type="password"
+                                type={showPassword ? "text" : "password"}
                                 placeholder="Enter password"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                className="w-full"
+                                className="w-full pr-10"
                             />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-3 top-2.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                aria-label={showPassword ? "Hide password" : "Show password"}
+                            >
+                                {showPassword ? <FaEyeSlash /> : <FaEye />}
+                            </button>
                             {error && <p className="text-red-500 text-sm">{error}</p>}
                         </div>
                         <Button

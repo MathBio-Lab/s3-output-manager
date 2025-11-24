@@ -9,11 +9,37 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: "Genomas Manager",
-  description: "Manager for S3 outputs and file execution services",
+  title: "Genomas Manager - S3 File Management System",
+  description: "Secure file management system for S3 outputs and file execution services. Access, preview, and manage your genomic data files efficiently.",
+  keywords: ["S3 manager", "file management", "genomic data", "cloud storage", "file explorer"],
+  authors: [{ name: "Genomas" }],
+  creator: "Genomas",
+  publisher: "Genomas",
   icons: {
     icon: "/lemon.svg",
   },
+  openGraph: {
+    title: "Genomas Manager - S3 File Management System",
+    description: "Secure file management system for S3 outputs and file execution services.",
+    type: "website",
+    locale: "en_US",
+    siteName: "Genomas Manager",
+  },
+  twitter: {
+    card: "summary",
+    title: "Genomas Manager",
+    description: "Secure file management system for S3 outputs and file execution services.",
+  },
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 import { ThemeProvider } from "@/components/theme-provider";

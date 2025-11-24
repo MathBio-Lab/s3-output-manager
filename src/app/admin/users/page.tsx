@@ -13,7 +13,7 @@ import {
     SheetTrigger,
     SheetFooter,
 } from "@/components/ui/sheet";
-import { FaPlus, FaEdit, FaTrash, FaArrowLeft, FaTrashRestore } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaArrowLeft, FaTrashRestore, FaEye, FaEyeSlash } from 'react-icons/fa';
 
 interface User {
     id: number;
@@ -33,6 +33,7 @@ export default function UsersPage() {
     // Form state
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [prefix, setPrefix] = useState('');
     const [type, setType] = useState<'admin' | 'client' | 'team'>('client');
 
@@ -71,6 +72,7 @@ export default function UsersPage() {
                 setIsOpen(false);
                 resetForm();
                 fetchUsers();
+                alert(editingUser ? 'User updated successfully' : 'User created successfully');
             } else {
                 alert('Failed to save user');
             }
@@ -111,6 +113,7 @@ export default function UsersPage() {
         setEditingUser(null);
         setUsername('');
         setPassword('');
+        setShowPassword(false);
         setPrefix('');
         setType('client');
     };
@@ -151,13 +154,23 @@ export default function UsersPage() {
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium">Password</label>
-                                    <Input
-                                        type="password"
-                                        value={password}
-                                        onChange={e => setPassword(e.target.value)}
-                                        required={!editingUser}
-                                        placeholder={editingUser ? 'Leave blank to keep unchanged' : ''}
-                                    />
+                                    <div className="relative">
+                                        <Input
+                                            type={showPassword ? "text" : "password"}
+                                            value={password}
+                                            onChange={e => setPassword(e.target.value)}
+                                            required={!editingUser}
+                                            placeholder={editingUser ? 'Leave blank to keep unchanged' : ''}
+                                            className="pr-10"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                            className="absolute right-3 top-2.5 text-gray-500 hover:text-gray-700"
+                                        >
+                                            {showPassword ? <FaEyeSlash /> : <FaEye />}
+                                        </button>
+                                    </div>
                                 </div>
                                 {type !== 'admin' ? (
                                     <div className="space-y-2">

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FaFile, FaFolder, FaDownload, FaTrash, FaUpload, FaArrowLeft, FaFilePdf, FaFileImage, FaFileCode, FaFileCsv, FaTerminal, FaEllipsisV } from 'react-icons/fa';
+import { FaFile, FaFolder, FaDownload, FaTrash, FaUpload, FaArrowLeft, FaFilePdf, FaFileImage, FaFileCode, FaFileCsv, FaTerminal, FaEllipsisV, FaFolderPlus } from 'react-icons/fa';
 
 interface FileSystemEntry {
     isFile: boolean;
@@ -22,6 +22,7 @@ interface FileSystemDirectoryReader {
 }
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import {
@@ -70,6 +71,11 @@ export default function FileExplorer({ onFileSelect, selectedPath, rootPrefix = 
     const [uploading, setUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
     const [isDragging, setIsDragging] = useState(false);
+
+    // Create Folder State
+    const [showCreateFolder, setShowCreateFolder] = useState(false);
+    const [newFolderName, setNewFolderName] = useState('');
+    const [creatingFolder, setCreatingFolder] = useState(false);
 
     // Sync currentPath with URL or rootPrefix
     useEffect(() => {
@@ -287,6 +293,37 @@ export default function FileExplorer({ onFileSelect, selectedPath, rootPrefix = 
         }
     };
 
+    const handleCreateFolder = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newFolderName.trim()) return;
+
+        setCreatingFolder(true);
+        try {
+            const res = await fetch('/api/s3-create-folder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    parentPath: currentPath,
+                    folderName: newFolderName.trim(),
+                }),
+            });
+
+            if (res.ok) {
+                setNewFolderName('');
+                setShowCreateFolder(false);
+                fetchItems(currentPath); // Refresh list
+            } else {
+                const data = await res.json();
+                alert(data.error || 'Failed to create folder');
+            }
+        } catch (error) {
+            console.error('Create folder error:', error);
+            alert('An error occurred while creating the folder');
+        } finally {
+            setCreatingFolder(false);
+        }
+    };
+
     return (
         <div
             className="h-full flex flex-col relative"
@@ -311,6 +348,14 @@ export default function FileExplorer({ onFileSelect, selectedPath, rootPrefix = 
                         disabled={!currentPath || currentPath === normalizedRootPrefix}
                     >
                         <FaArrowLeft />
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setShowCreateFolder(true)}
+                        title="Create Folder"
+                    >
+                        <FaFolderPlus className="text-yellow-600" />
                     </Button>
                     <div className="text-sm font-medium truncate flex-1">
                         {currentPath === normalizedRootPrefix ? 'Root' : currentPath.replace(normalizedRootPrefix, '') || 'Root'}
@@ -408,6 +453,36 @@ export default function FileExplorer({ onFileSelect, selectedPath, rootPrefix = 
                     )}
                 </div>
             </div>
+            {/* Create Folder Modal */}
+            {showCreateFolder && (
+                <div className="absolute inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div className="bg-background p-6 rounded-lg shadow-xl w-full max-w-sm border" onClick={e => e.stopPropagation()}>
+                        <h3 className="text-lg font-semibold mb-4">Create New Folder</h3>
+                        <form onSubmit={handleCreateFolder}>
+                            <Input
+                                autoFocus
+                                placeholder="Folder Name"
+                                value={newFolderName}
+                                onChange={(e) => setNewFolderName(e.target.value)}
+                                className="mb-4"
+                            />
+                            <div className="flex justify-end gap-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setShowCreateFolder(false)}
+                                    disabled={creatingFolder}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button type="submit" disabled={creatingFolder || !newFolderName.trim()}>
+                                    {creatingFolder ? 'Creating...' : 'Create'}
+                                </Button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

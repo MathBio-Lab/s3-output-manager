@@ -76,6 +76,16 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* Custom theme colors (can be overridden via JS) */
+  --theme-primary: 217 91% 60%;
+  --theme-primary-foreground: 0 0% 100%;
+  --theme-background: 217 15% 98%;
+  --theme-card: 217 15% 100%;
+  --theme-accent: 217 30% 85%;
+  --theme-border: 217 20% 90%;
+  --theme-muted: 217 20% 95%;
+  --theme-foreground: 217 10% 10%;
 }
 
 .dark {
@@ -116,6 +126,7 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }

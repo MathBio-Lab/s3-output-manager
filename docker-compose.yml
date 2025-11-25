@@ -21,7 +21,8 @@ services:
     container_name: nextjs_s3_downloader
     restart: unless-stopped
     environment:
-      DATABASE_URL: ${DATABASE_URL}
+      # Use internal Docker network hostname for database connection
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db-s3-downloader-service:5432/${POSTGRES_DB}
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
       NODE_ENV: production
     ports:

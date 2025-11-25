@@ -110,6 +110,16 @@ cp .env.example .env
 
 Edita `.env` con tus valores de AWS y PostgreSQL.
 
+> [!IMPORTANT]
+> **Configuración de DATABASE_URL**: 
+> - Para **desarrollo local** (`npm run dev`): usa `postgresql://user:password@localhost:PUERTO_MAPEADO/dbname`
+> - Para **Docker**: el `docker-compose.yml` construye automáticamente la URL usando el hostname interno `db-s3-downloader-service:5432`
+> 
+> Ejemplo en `.env`:
+> ```bash
+> DATABASE_URL=postgresql://s3-user:jajas3@localhost:4001/s3-db
+> ```
+
 ### 2. Iniciar los contenedores
 
 ```bash

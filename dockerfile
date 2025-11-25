@@ -3,7 +3,7 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Instala dependencias
+# Instala dependencias solo una vez
 COPY package*.json ./
 RUN npm install
 
@@ -19,15 +19,18 @@ FROM node:20-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Copiamos package.json para instalar SOLO prod deps
-COPY package*.json ./
+# Instala tsx (para db:init y db:seed dentro del contenedor)
+RUN npm install -g tsx
 
-# Instala dependencias de producción
-RUN npm install --omit=dev
+# Copiamos solo lo necesario
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/src/db ./src/db  
+COPY --from=builder /app/src/lib ./src/lib
 
-# Copia la app ya compilada
-COPY --from=builder /app ./
-
+# Exponer puerto
 EXPOSE 3000
 
 CMD ["npm", "start"]

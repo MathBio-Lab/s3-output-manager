@@ -1,24 +1,34 @@
-# --- Etapa de build ---
+# --- BUILD STAGE ---
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Instala dependencias
 COPY package*.json ./
 RUN npm install
 
+# Copia el resto del proyecto
 COPY . .
 
-# Generar build de Next.js
+# Genera Prisma Client (OBLIGATORIO)
+RUN npx prisma generate
+
+# Build de Next.js
 RUN npm run build
 
-# --- Etapa de producción ---
+# --- PRODUCTION STAGE ---
 FROM node:20-alpine
 
 WORKDIR /app
-
 ENV NODE_ENV=production
-RUN npm install -g serve
 
+# Copiamos package.json para instalar SOLO prod deps
+COPY package*.json ./
+
+# Instala dependencias de producción
+RUN npm install --omit=dev
+
+# Copia la app ya compilada y el client prisma generado
 COPY --from=builder /app ./
 
 EXPOSE 3000

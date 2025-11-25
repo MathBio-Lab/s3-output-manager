@@ -121,14 +121,10 @@ Esto construye las imágenes y levanta los servicios (PostgreSQL + Next.js).
 ### 3. Aplicar migraciones de base de datos
 
 ```bash
-docker compose exec nextjs-s3-app npx prisma migrate deploy
+docker compose exec nextjs_s3_downloader npx prisma migrate deploy
 ```
 
 ### 4. Poblar la base de datos (opcional)
-
-```bash
-docker compose exec nextjs-s3-app npx prisma db seed
-```
 
 Esto crea usuarios de prueba:
 - **admin** / admin (tipo: admin)

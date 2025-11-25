@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { query } from '@/lib/db';
 
 export async function POST(
     request: NextRequest,
@@ -10,9 +10,11 @@ export async function POST(
         const userId = parseInt(id);
 
         // Get the user to be restored
-        const user = await prisma.user.findUnique({
-            where: { id: userId },
-        });
+        const result = await query(
+            'SELECT * FROM "User" WHERE id = $1',
+            [userId]
+        );
+        const user = result.rows[0];
 
         if (!user) {
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
@@ -23,12 +25,11 @@ export async function POST(
         }
 
         // Restore user by setting deletedAt to null
-        const restoredUser = await prisma.user.update({
-            where: { id: userId },
-            data: {
-                deletedAt: null,
-            },
-        });
+        const updateResult = await query(
+            'UPDATE "User" SET "deletedAt" = NULL WHERE id = $1 RETURNING *',
+            [userId]
+        );
+        const restoredUser = updateResult.rows[0];
 
         return NextResponse.json({
             success: true,

@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import { jwtVerify } from 'jose';
-import { prisma } from '@/lib/prisma';
+import { query } from '@/lib/db';
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'default-secret-key-change-me');
 
@@ -24,9 +24,11 @@ export async function getAuthUser(request?: NextRequest): Promise<AuthUser | nul
         const { payload } = await jwtVerify(token, JWT_SECRET);
 
         // Fetch fresh user data from database to ensure prefix is up to date
-        const user = await prisma.user.findUnique({
-            where: { id: payload.id as number },
-        });
+        const result = await query(
+            'SELECT id, username, type, prefix, "deletedAt" FROM "User" WHERE id = $1',
+            [payload.id]
+        );
+        const user = result.rows[0];
 
         if (!user || user.deletedAt) {
             return null;

@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { query } from '@/lib/db';
 
 export async function GET() {
     try {
-        const deletedUsers = await prisma.user.findMany({
-            where: {
-                deletedAt: { not: null }, // Only return deleted users
-            },
-            orderBy: { deletedAt: 'desc' },
-        });
+        const result = await query(
+            'SELECT * FROM "User" WHERE "deletedAt" IS NOT NULL ORDER BY "deletedAt" DESC'
+        );
+        const deletedUsers = result.rows;
         return NextResponse.json(deletedUsers);
     } catch (error) {
         const err = error as { message?: string };

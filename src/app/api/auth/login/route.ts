@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { prisma } from '@/lib/prisma';
+import { query } from '@/lib/db';
 import { SignJWT } from 'jose';
 import bcrypt from 'bcryptjs';
 
@@ -14,9 +14,11 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Username and password are required' }, { status: 400 });
         }
 
-        const user = await prisma.user.findUnique({
-            where: { username },
-        });
+        const result = await query(
+            'SELECT * FROM "User" WHERE username = $1',
+            [username]
+        );
+        const user = result.rows[0];
 
         if (!user || user.deletedAt) {
             return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });

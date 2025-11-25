@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { query } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import { S3Client, HeadObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { config } from '@/lib/config';
@@ -14,12 +14,10 @@ const s3Client = new S3Client({
 
 export async function GET() {
     try {
-        const users = await prisma.user.findMany({
-            where: {
-                deletedAt: null, // Only return non-deleted users
-            },
-            orderBy: { createdAt: 'desc' },
-        });
+        const result = await query(
+            'SELECT * FROM "User" WHERE "deletedAt" IS NULL ORDER BY "createdAt" DESC'
+        );
+        const users = result.rows;
         return NextResponse.json(users);
     } catch (error) {
         const err = error as { message?: string };
@@ -87,15 +85,13 @@ export async function POST(request: NextRequest) {
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        const user = await prisma.user.create({
-            data: {
-                username,
-                password: hashedPassword,
-                prefix: normalizedPrefix,
-                type,
-                metadata: metadata || {},
-            },
-        });
+        const result = await query(
+            `INSERT INTO "User" (username, password, prefix, type, metadata, "updatedAt")
+             VALUES ($1, $2, $3, $4, $5, NOW())
+             RETURNING *`,
+            [username, hashedPassword, normalizedPrefix, type, metadata || {}]
+        );
+        const user = result.rows[0];
 
         return NextResponse.json(user);
     } catch (error: any) {

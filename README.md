@@ -118,18 +118,28 @@ docker compose up --build -d
 
 Esto construye las imágenes y levanta los servicios (PostgreSQL + Next.js).
 
-### 3. Aplicar migraciones de base de datos
+### 3. Inicializar la base de datos
+
+Crea las tablas necesarias ejecutando el script de inicialización:
 
 ```bash
-docker compose exec nextjs_s3_downloader npx prisma migrate deploy
+docker compose exec nextjs_s3_downloader npm run db:init
 ```
+
+Este comando ejecuta el schema SQL que crea la tabla `User` con todos los campos necesarios.
 
 ### 4. Poblar la base de datos (opcional)
 
-Esto crea usuarios de prueba:
-- **admin** / admin (tipo: admin)
-- **client1** / client123 (tipo: client, prefix: karen)
-- **team1** / team123 (tipo: team)
+Crea usuarios de prueba para desarrollo y testing:
+
+```bash
+docker compose exec nextjs_s3_downloader npm run db:seed
+```
+
+Esto crea los siguientes usuarios (todos con contraseña `password`):
+- **admin** (tipo: admin, acceso completo)
+- **client** (tipo: client, prefix: `client-folder/`)
+- **team** (tipo: team, acceso de equipo)
 
 ### 5. Acceder a la aplicación
 

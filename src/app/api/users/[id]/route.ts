@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { UserType, Prisma } from '@prisma/client';
+import { query } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 
 export async function GET(
@@ -9,9 +8,11 @@ export async function GET(
 ) {
     try {
         const { id } = await params;
-        const user = await prisma.user.findUnique({
-            where: { id: parseInt(id) },
-        });
+        const result = await query(
+            'SELECT * FROM "User" WHERE id = $1',
+            [parseInt(id)]
+        );
+        const user = result.rows[0];
 
         if (!user || user.deletedAt) {
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
@@ -46,24 +47,44 @@ export async function PUT(
             return NextResponse.json({ error: 'Admin users should not have a prefix (they have access to the entire bucket)' }, { status: 400 });
         }
 
-        const updateData: {
-            username?: string;
-            password?: string;
-            prefix?: string | null;
-            type?: UserType;
-            metadata?: Prisma.InputJsonValue;
-        } = {};
+        const fields: string[] = [];
+        const values: any[] = [];
+        let paramIndex = 1;
 
-        if (username) updateData.username = username;
-        if (password) updateData.password = await bcrypt.hash(password, 10);
-        if (prefix !== undefined) updateData.prefix = prefix || null;
-        if (type) updateData.type = type;
-        if (metadata !== undefined) updateData.metadata = metadata;
+        if (username) {
+            fields.push(`username = $${paramIndex++}`);
+            values.push(username);
+        }
+        if (password) {
+            const hashedPassword = await bcrypt.hash(password, 10);
+            fields.push(`password = $${paramIndex++}`);
+            values.push(hashedPassword);
+        }
+        if (prefix !== undefined) {
+            fields.push(`prefix = $${paramIndex++}`);
+            values.push(prefix || null);
+        }
+        if (type) {
+            fields.push(`type = $${paramIndex++}`);
+            values.push(type);
+        }
+        if (metadata !== undefined) {
+            fields.push(`metadata = $${paramIndex++}`);
+            values.push(metadata);
+        }
 
-        const user = await prisma.user.update({
-            where: { id: parseInt(id) },
-            data: updateData,
-        });
+        if (fields.length === 0) {
+            return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
+        }
+
+        fields.push(`"updatedAt" = NOW()`);
+
+        values.push(parseInt(id));
+        const result = await query(
+            `UPDATE "User" SET ${fields.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
+            values
+        );
+        const user = result.rows[0];
 
         return NextResponse.json(user);
     } catch (error: unknown) {
@@ -81,9 +102,11 @@ export async function DELETE(
         const userId = parseInt(id);
 
         // Get the user to be deleted
-        const userToDelete = await prisma.user.findUnique({
-            where: { id: userId },
-        });
+        const result = await query(
+            'SELECT * FROM "User" WHERE id = $1',
+            [userId]
+        );
+        const userToDelete = result.rows[0];
 
         if (!userToDelete) {
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
@@ -96,12 +119,11 @@ export async function DELETE(
 
         // If trying to delete an admin, check if it's the last one
         if (userToDelete.type === 'admin') {
-            const activeAdminCount = await prisma.user.count({
-                where: {
-                    type: 'admin',
-                    deletedAt: null, // Only count non-deleted admins
-                },
-            });
+            const countResult = await query(
+                'SELECT COUNT(*) FROM "User" WHERE type = $1 AND "deletedAt" IS NULL',
+                ['admin']
+            );
+            const activeAdminCount = parseInt(countResult.rows[0].count);
 
             if (activeAdminCount <= 1) {
                 return NextResponse.json({
@@ -111,12 +133,10 @@ export async function DELETE(
         }
 
         // Soft delete: set deletedAt timestamp
-        await prisma.user.update({
-            where: { id: userId },
-            data: {
-                deletedAt: new Date(),
-            },
-        });
+        await query(
+            'UPDATE "User" SET "deletedAt" = NOW() WHERE id = $1',
+            [userId]
+        );
 
         return NextResponse.json({ success: true, message: 'User deleted successfully' });
     } catch (error: unknown) {

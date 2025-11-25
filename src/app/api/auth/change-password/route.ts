@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { query } from '@/lib/db';
 import { getAuthUser } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
 
@@ -18,9 +18,11 @@ export async function POST(request: NextRequest) {
         }
 
         // Fetch full user record from database
-        const dbUser = await prisma.user.findUnique({
-            where: { id: user.id },
-        });
+        const result = await query(
+            'SELECT * FROM "User" WHERE id = $1',
+            [user.id]
+        );
+        const dbUser = result.rows[0];
 
         if (!dbUser) {
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
@@ -36,10 +38,10 @@ export async function POST(request: NextRequest) {
         const hashedPassword = await bcrypt.hash(newPassword, 10);
 
         // Update password
-        await prisma.user.update({
-            where: { id: user.id },
-            data: { password: hashedPassword },
-        });
+        await query(
+            'UPDATE "User" SET password = $1, "updatedAt" = NOW() WHERE id = $2',
+            [hashedPassword, user.id]
+        );
 
         return NextResponse.json({ success: true, message: 'Password changed successfully' });
 

@@ -1,5 +1,5 @@
 import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3';
-import { config } from './src/lib/config';
+import { config } from '../lib/config';
 
 // Configurar cliente S3 manualmente ya que config usa process.env que podría no estar cargado en este contexto
 const s3Client = new S3Client({

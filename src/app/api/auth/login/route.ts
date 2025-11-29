@@ -1,17 +1,14 @@
-import "dotenv/config";
-
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { query } from '@/lib/db';
 import { SignJWT } from 'jose';
 import bcrypt from 'bcryptjs';
+import { config } from '@/lib/config';
 
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'default-secret-key-change-me');
+const JWT_SECRET = new TextEncoder().encode(config.auth.jwtSecret);
 
 export async function POST(request: NextRequest) {
     try {
-
-        console.log("DATABASE_URL:", process.env.DATABASE_URL);
 
         const { username, password } = await request.json();
 
@@ -48,7 +45,7 @@ export async function POST(request: NextRequest) {
         const cookieStore = await cookies();
         cookieStore.set('auth_token', token, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
+            secure: config.app.isProduction,
             sameSite: 'strict',
             maxAge: 60 * 60 * 24 * 7, // 1 week
             path: '/',

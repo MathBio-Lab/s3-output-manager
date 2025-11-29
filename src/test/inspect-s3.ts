@@ -1,19 +1,18 @@
 import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { config } from '../lib/config';
 
-// Configurar cliente S3 manualmente ya que config usa process.env que podría no estar cargado en este contexto
 const s3Client = new S3Client({
-    region: process.env.NEXT_PUBLIC_AWS_REGION || 'us-east-2',
+    region: config.aws.region,
     credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+        accessKeyId: config.aws.accessKeyId,
+        secretAccessKey: config.aws.secretAccessKey,
     },
 });
 
 async function listAll() {
     try {
         const command = new ListObjectsV2Command({
-            Bucket: process.env.NEXT_PUBLIC_AWS_BUCKET_NAME || '',
+            Bucket: config.aws.bucketName,
             Delimiter: '/',
             Prefix: '', // Listar desde la raíz
         });
@@ -34,7 +33,7 @@ async function listAll() {
         console.log(`\n--- SIMULACIÓN API (Prefix: "${fullPrefix}") ---`);
 
         const apiCommand = new ListObjectsV2Command({
-            Bucket: process.env.NEXT_PUBLIC_AWS_BUCKET_NAME || '',
+            Bucket: config.aws.bucketName,
             Prefix: fullPrefix,
             Delimiter: '/',
         });

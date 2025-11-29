@@ -2,8 +2,9 @@ import { NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import { jwtVerify } from 'jose';
 import { query } from '@/lib/db';
+import { config } from '@/lib/config';
 
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'default-secret-key-change-me');
+const JWT_SECRET = new TextEncoder().encode(config.auth.jwtSecret);
 
 export interface AuthUser {
     id: number;

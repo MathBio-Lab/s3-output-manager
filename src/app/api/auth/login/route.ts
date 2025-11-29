@@ -1,13 +1,19 @@
+import "dotenv/config";
+
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { query } from '@/lib/db';
 import { SignJWT } from 'jose';
 import bcrypt from 'bcryptjs';
+import { config } from '@/lib/config';
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'default-secret-key-change-me');
 
 export async function POST(request: NextRequest) {
     try {
+
+        console.log("DATABASE_URL:", config.aws.databaseUrl);
+
         const { username, password } = await request.json();
 
         if (!username || !password) {
